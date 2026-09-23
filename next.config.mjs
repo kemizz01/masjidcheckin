@@ -17,7 +17,9 @@ const nextConfig = {
   serverExternalPackages: [
     "@tensorflow/tfjs",
     "@tensorflow-models/mobilenet",
-    "@vladmandic/face-api",
+    // NOTE: @vladmandic/face-api is NOT external — Next.js MUST bundle and
+    // CJS-transform the ESM build (face-api.esm.js) because Node.js would
+    // otherwise treat its .js file as CJS and choke on `export` syntax.
     "jpeg-js",
   ],
 
