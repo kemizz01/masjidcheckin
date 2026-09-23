@@ -1,0 +1,156 @@
+/* =========================================================================
+ * MasjidCheckIn — Global Styles
+ *
+ * THEME TOKENS
+ *   CSS variables store colours as RGB triplets so Tailwind's `/opacity`
+ *   modifier works (e.g. `bg-surface/60` → `background: rgb(var(--surface) / 0.6)`).
+ *   The `.dark` class on <html> swaps out the light palette for the dark one.
+ * ========================================================================= */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* -------------------------------------------------------------------------
+ * LIGHT THEME (default)
+ * Premium warm-cream base with navy text and gold accents.
+ * ------------------------------------------------------------------------- */
+:root {
+  --background: 247 243 235; /* warm cream    #F7F3EB */
+  --surface: 255 255 255; /* pure white    #FFFFFF */
+  --surface-2: 239 233 220; /* sand          #EFE9DC */
+  --foreground: 10 21 38; /* deep navy     #0A1526 */
+  --muted: 91 100 112; /* stone         #5B6470 */
+  --line: 10 21 38; /* navy (tinted)  */
+}
+
+/* -------------------------------------------------------------------------
+ * DARK THEME (applied when <html> has class "dark")
+ * Signature deep-navy backgrounds with warm-cream text and gold accents.
+ * ------------------------------------------------------------------------- */
+.dark {
+  --background: 10 21 38; /* navy-900      #0A1526 */
+  --surface: 16 30 51; /* navy-800      #101E33 */
+  --surface-2: 22 40 63; /* navy-700      #16283F */
+  --foreground: 244 238 221; /* warm-cream    #F4EEDD */
+  --muted: 154 166 181; /* soft grey     #9AA6B5 */
+  --line: 217 169 78; /* gold          #D9A94E */
+}
+
+/* =========================================================================
+ * BASE LAYER
+ * ========================================================================= */
+@layer base {
+  /* Default border colour uses the theme-aware `line` token at 12% opacity. */
+  * {
+    border-color: rgb(var(--line) / 0.12);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    /* Subtle ambient glow — a fixed radial gradient that stays as content scrolls. */
+    background-image: radial-gradient(
+        1200px 600px at 50% -10%,
+        rgba(217, 169, 78, 0.07),
+        transparent 55%
+      ),
+      radial-gradient(
+        800px 500px at 90% 100%,
+        rgba(22, 40, 63, 0.22),
+        transparent 55%
+      );
+    background-attachment: fixed;
+  }
+
+  /* Custom selection highlighting uses the gold/muted tone. */
+  ::selection {
+    background: rgb(var(--line) / 0.22);
+  }
+}
+
+/* =========================================================================
+ * COMPONENT LAYER — reusable composable utilities
+ * ========================================================================= */
+@layer components {
+  /**
+   * Glassmorphism card surface.
+   * Semi-transparent background with strong backdrop blur and thin theme border.
+   */
+  .glass {
+    @apply border bg-surface/65 shadow-sm backdrop-blur-xl;
+    /* Theme-aware border colour with subtle opacity (avoids @apply opacity
+       modifier quirks with custom <alpha-value> colours). */
+    border-color: rgb(var(--line) / 0.1);
+  }
+
+  /**
+   * Glassmorphism that is more opaque (useful for sticky headers that must
+   * clearly separate from scrolling content behind them).
+   */
+  .glass-heavy {
+    @apply border bg-surface/80 shadow backdrop-blur-2xl;
+    border-color: rgb(var(--line) / 0.12);
+  }
+}
+
+/* =========================================================================
+ * UTILITY LAYER — small, single-purpose helpers
+ * ========================================================================= */
+@layer utilities {
+  /**
+   * Gold text gradient.
+   * Apply via class `text-gradient-gold`. Make sure the element has a block
+   * or inline-block display context.
+   */
+  .text-gradient-gold {
+    background-image: linear-gradient(
+      120deg,
+      #efd493 0%,
+      #d9a94e 45%,
+      #f2e3b8 70%,
+      #efd493 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /**
+   * Skeleton loader — use for async placeholders (cards, text, avatars).
+   * The shimmer animation runs automatically via the ::after pseudo-element.
+   */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    background: rgb(var(--surface-2));
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgb(var(--foreground) / 0.06) 40%,
+      rgb(var(--foreground) / 0.03) 60%,
+      transparent 100%
+    );
+    animation: shimmer 1.8s infinite;
+  }
+
+  /* Hide scrollbar but keep scroll functionality. */
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE & Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+}

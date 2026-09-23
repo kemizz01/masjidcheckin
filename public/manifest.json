@@ -1,0 +1,10 @@
+{
+  "name": "MasjidCheckIn",
+  "short_name": "MasjidCheckIn",
+  "description": "Smart mosque attendance system with geofencing, face recognition, and scene verification.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A1526",
+  "theme_color": "#0A1526",
+  "icons": []
+}
