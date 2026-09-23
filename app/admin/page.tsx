@@ -15,10 +15,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   BarChart3,
   Building2,
+  LogOut,
   Settings,
   Users,
 } from "lucide-react";
@@ -48,7 +50,13 @@ type TabId = (typeof TABS)[number]["id"];
 /* ================================================================== */
 
 export default function AdminPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+
+  const handleLogout = async () => {
+    await fetch("/api/auth", { method: "DELETE" });
+    router.push("/admin/login");
+  };
 
   return (
     <div className="relative mx-auto flex min-h-screen max-w-3xl flex-col">
@@ -66,6 +74,13 @@ export default function AdminPage() {
         <h1 className="flex-1 font-display text-lg tracking-wide text-foreground">
           Admin Panel
         </h1>
+        <button
+          onClick={handleLogout}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+          aria-label="Logout"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
         <ThemeToggle />
       </header>
 

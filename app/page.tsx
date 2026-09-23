@@ -32,6 +32,7 @@ import type { LucideIcon } from "lucide-react";
 
 import ThemeToggle from "@/components/ThemeToggle";
 import { MOSQUE } from "@/lib/config";
+import { useMosqueSettings } from "@/lib/useMosqueSettings";
 import {
   PRAYER_TIMES,
   getCurrentPrayer,
@@ -77,6 +78,7 @@ function useNow(intervalMs = 1000) {
 
 export default function HomePage() {
   const now = useNow();
+  const { settings } = useMosqueSettings();
 
   // Compute next prayer and current prayer period based on the live clock.
   const nextPrayer = useMemo(() => getNextPrayer(now), [now]);
@@ -143,7 +145,7 @@ export default function HomePage() {
           </div>
           <div className="leading-tight">
             <p className="text-sm font-semibold text-foreground">
-              {MOSQUE.name}
+              {settings.name}
             </p>
             <p className="text-[11px] text-muted">MasjidCheckIn</p>
           </div>
@@ -166,7 +168,7 @@ export default function HomePage() {
             Assalamu&apos;alaikum
           </p>
           <p className="mt-0.5 font-display text-2xl text-foreground">
-            {MOSQUE.name}
+            {settings.name}
           </p>
           <p className="mt-1 text-xs text-muted">{formattedDate}</p>
         </motion.section>

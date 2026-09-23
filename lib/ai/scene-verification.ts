@@ -13,6 +13,7 @@
 // jpeg-js is pure JavaScript — safe to import statically.
 import jpeg from "jpeg-js";
 import path from "path";
+import fs from "fs";
 
 /* ------------------------------------------------------------------ */
 /*  Lazy module loaders                                                */
@@ -41,32 +42,43 @@ async function getModel(): Promise<any> {
   if (model) return model;
 
   await (await getTF()).ready();
+  const mobilenet = await getMobilenet();
 
-  const modelPath = path.join(
+  const localModelPath = path.join(
     process.cwd(),
     "public",
     "models",
     "mobilenet",
     "model.json",
   );
-  const modelUrl = `file://${modelPath}`;
 
-  try {
-    const mobilenet = await getMobilenet();
-    model = await mobilenet.load({
-      version: 2,
-      alpha: 1.0,
-      modelUrl,
-    });
-    console.log("[scene-verification] MobileNet loaded ✓");
-    return model;
-  } catch (err) {
-    console.error("[scene-verification] Model loading failed:", err);
-    throw new Error(
-      "MobileNet model not found at public/models/mobilenet/. " +
-        "Run `node scripts/download-models.js` first.",
+  // Try loading from the local file-system first (fast, no network on cold start).
+  if (fs.existsSync(localModelPath)) {
+    try {
+      model = await mobilenet.load({
+        version: 2,
+        alpha: 1.0,
+        modelUrl: `file://${localModelPath}`,
+      });
+      console.log("[scene-verification] MobileNet loaded from local disk ✓");
+      return model;
+    } catch (err) {
+      console.warn(
+        "[scene-verification] Local model failed to load, falling back to CDN:",
+        err,
+      );
+    }
+  } else {
+    console.warn(
+      "[scene-verification] Local model not found — loading from CDN (slow on cold start).\n" +
+        "    Run `node scripts/download-models.js` to cache models locally.",
     );
   }
+
+  // Fallback: fetch from the default CDN (tfhub.dev) at runtime.
+  model = await mobilenet.load({ version: 2, alpha: 1.0 });
+  console.log("[scene-verification] MobileNet loaded from CDN ✓");
+  return model;
 }
 
 /* ------------------------------------------------------------------ */

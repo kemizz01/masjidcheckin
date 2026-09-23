@@ -43,6 +43,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import Skeleton from "@/components/Skeleton";
 
 import { MOSQUE } from "@/lib/config";
+import { useMosqueSettings } from "@/lib/useMosqueSettings";
 import {
   recognizeFace,
   verifyScene,
@@ -97,6 +98,15 @@ const slideVariants = {
 /* ================================================================== */
 
 export default function AttendPage() {
+  /* ---- Live mosque settings (fetched from Supabase, falls back to config.ts) ---- */
+  const { settings } = useMosqueSettings();
+  // Keep a ref so the GPS callback always reads the latest coordinates
+  // without needing to be recreated on every settings change.
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
   /* ---- Step state ---- */
   const [step, setStep] = useState(1);
   // Track the direction of step transitions for a smooth slide animation.
@@ -155,12 +165,12 @@ export default function AttendPage() {
         const distance = haversineMeters(
           pos.coords.latitude,
           pos.coords.longitude,
-          MOSQUE.latitude,
-          MOSQUE.longitude,
+          settingsRef.current.latitude,
+          settingsRef.current.longitude,
         );
         setGpsDistance(distance);
 
-        if (distance <= MOSQUE.geofenceRadiusMeters) {
+        if (distance <= settingsRef.current.geofence_radius) {
           setGpsStatus("inside");
           // Auto-advance to face scan after a brief celebratory pause.
           setTimeout(() => {
@@ -362,9 +372,9 @@ export default function AttendPage() {
               {/* Description */}
               <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted">
                 {gpsStatus === "checking" &&
-                  `Making sure you're within ${MOSQUE.geofenceRadiusMeters} m of ${MOSQUE.name}.`}
+                  `Making sure you're within ${settings.geofence_radius} m of ${settings.name}.`}
                 {gpsStatus === "inside" &&
-                  `Distance: ${formatDistanceMeters(gpsDistance)} from ${MOSQUE.name}.`}
+                  `Distance: ${formatDistanceMeters(gpsDistance)} from ${settings.name}.`}
                 {gpsStatus === "outside" &&
                   `You are ${formatDistanceMeters(gpsDistance)} away — please move closer to the mosque.`}
                 {gpsStatus === "error" &&
@@ -580,7 +590,7 @@ export default function AttendPage() {
                     <SummaryRow
                       icon={<Building2 className="h-4 w-4 text-gold" />}
                       label="Mosque"
-                      value={MOSQUE.name}
+                      value={settings.name}
                     />
                     <SummaryRow
                       icon={<MapPin className="h-4 w-4 text-gold" />}
