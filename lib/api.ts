@@ -22,7 +22,12 @@ export interface FaceResult {
   matched: boolean;
   name: string | null;
   distance: number | null;
-  user: { id: string; name: string; archive_photo_url?: string } | null;
+  user: {
+    id: string;
+    name: string;
+    class_name?: string | null;
+    archive_photo_url?: string;
+  } | null;
 }
 
 export interface SceneResult {
@@ -99,7 +104,12 @@ export async function recognizeFace(image: string): Promise<FaceResult> {
   // ------------------------------------------------------------------
   const data = await postJSON<{
     matched: boolean;
-    user?: { id: string; name: string; archive_photo_url?: string } | null;
+    user?: {
+      id: string;
+      name: string;
+      class_name?: string | null;
+      archive_photo_url?: string;
+    } | null;
     distance?: number | null;
   }>("/api/recognize-face", { image });
 
@@ -166,13 +176,22 @@ export async function saveAttendance(
 
 /**
  * Registers a new face from the admin panel.
- * POST /api/register-face  { image, name }
+ * POST /api/register-face  { image, name, className }
  */
 export async function registerFace(
   image: string,
   name: string,
-): Promise<{ success: boolean; user: { id: string; name: string; archive_photo_url: string } }> {
-  return postJSON("/api/register-face", { image, name });
+  className: string,
+): Promise<{
+  success: boolean;
+  user: {
+    id: string;
+    name: string;
+    class_name?: string | null;
+    archive_photo_url: string;
+  };
+}> {
+  return postJSON("/api/register-face", { image, name, className });
 }
 
 /* ================================================================== */

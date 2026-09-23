@@ -20,8 +20,9 @@ export async function GET() {
     const client = getServiceClient();
     const { data: users, error } = await client
       .from("users")
-      .select("id, name, created_at, face_descriptor, archive_photo_url")
-      .order("created_at", { ascending: false });
+      .select("id, name, class_name, created_at, face_descriptor, archive_photo_url")
+      .order("class_name", { ascending: true })
+      .order("name", { ascending: true });
 
     if (error) throw error;
 
@@ -30,6 +31,7 @@ export async function GET() {
     const slim = (users ?? []).map((u: Record<string, unknown>) => ({
       id: u.id,
       name: u.name,
+      class_name: u.class_name ?? null,
       created_at: u.created_at,
       archive_photo_url: u.archive_photo_url,
       has_descriptor: Array.isArray(u.face_descriptor) && u.face_descriptor.length > 0,

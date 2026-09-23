@@ -17,7 +17,7 @@
  *         - Saves the public URL in `users.archive_photo_url` so admins
  *           can visually review the registered face later.
  *
- *  Body:  { image: "data:image/jpeg;base64,…", name: "Ahmad Fauzi" }
+ *  Body:  { image: "data:image/jpeg;base64,…", name: "Ahmad Fauzi", className: "X-A" }
  * =============================================================================
  */
 
@@ -25,6 +25,7 @@ import { NextResponse } from "next/server";
 import { getServiceClient, uploadImageToStorage } from "@/lib/supabase";
 import { extractFaceDescriptor } from "@/lib/ai/face-recognition";
 import { FACES_BUCKET } from "@/lib/config";
+import { CLASSES } from "@/lib/classes";
 
 // Force Node.js runtime (AI models need the filesystem + CPU).
 export const runtime = "nodejs";
@@ -36,7 +37,11 @@ export async function POST(request: Request) {
     // ---------------------------------------------------------------------
     // 1. Parse & validate the request body
     // ---------------------------------------------------------------------
-    const body = (await request.json()) as { image?: string; name?: string };
+    const body = (await request.json()) as {
+      image?: string;
+      name?: string;
+      className?: string;
+    };
 
     if (!body.image || !body.name?.trim()) {
       return NextResponse.json(
@@ -46,6 +51,15 @@ export async function POST(request: Request) {
     }
 
     const name = body.name.trim();
+
+    // Validate the class against the known registry (X-A … XII-H).
+    const className = body.className?.trim() ?? "";
+    if (!className || !CLASSES.includes(className)) {
+      return NextResponse.json(
+        { error: "A valid class (X-A … XII-H) is required." },
+        { status: 400 },
+      );
+    }
 
     // ---------------------------------------------------------------------
     // 2. Extract the face descriptor (128-d vector)
@@ -84,6 +98,7 @@ export async function POST(request: Request) {
       .from("users")
       .insert({
         name,
+        class_name: className,
         // Store the descriptor as a plain array (Postgres `jsonb` / `float8[]`).
         face_descriptor: Array.from(descriptor),
         archive_photo_url: archivePhotoUrl,
@@ -103,6 +118,7 @@ export async function POST(request: Request) {
       user: {
         id: user.id,
         name: user.name,
+        class_name: user.class_name,
         archive_photo_url: user.archive_photo_url,
       },
     });

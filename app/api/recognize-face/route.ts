@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     const client = getServiceClient();
     const { data: users, error } = await client
       .from("users")
-      .select("id, name, face_descriptor, archive_photo_url");
+      .select("id, name, class_name, face_descriptor, archive_photo_url");
 
     if (error) throw error;
     if (!users || users.length === 0) {
@@ -100,6 +100,7 @@ export async function POST(request: Request) {
         user: {
           id: bestMatch.user.id,
           name: bestMatch.user.name,
+          class_name: bestMatch.user.class_name ?? null,
           archive_photo_url: bestMatch.user.archive_photo_url,
         },
         distance: bestMatch.distance,
