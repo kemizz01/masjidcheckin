@@ -5,9 +5,10 @@
   "description": "MasjidCheckIn — a smart mosque attendance system with geofencing, face recognition, and scene/location verification.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/patch-chunk.cjs",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node scripts/patch-face-api.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.0",
