@@ -121,6 +121,21 @@
   }
 
   /**
+   * Navy text gradient (for dark headers on light backgrounds).
+   */
+  .text-gradient-navy {
+    background-image: linear-gradient(
+      135deg,
+      #16283F 0%,
+      #0A1526 60%,
+      #050B14 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /**
    * Skeleton loader — use for async placeholders (cards, text, avatars).
    * The shimmer animation runs automatically via the ::after pseudo-element.
    */
@@ -153,4 +168,35 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
   }
+
+  /**
+   * Floating orb — animated gradient sphere for decorative backgrounds.
+   */
+  .floating-orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(60px);
+    opacity: 0.15;
+    pointer-events: none;
+    animation: float 6s ease-in-out infinite;
+  }
+  .floating-orb.slow {
+    animation-duration: 8s;
+  }
+  .floating-orb.gold {
+    background: #D9A94E;
+  }
+  .floating-orb.navy {
+    background: #16283F;
+  }
+
+  /**
+   * Entrance animation — slide up with fade.
+   */
+  .animate-enter {
+    animation: enter 0.4s ease-out both;
+  }
+  .animate-enter-delay-1 { animation-delay: 0.1s; }
+  .animate-enter-delay-2 { animation-delay: 0.2s; }
+  .animate-enter-delay-3 { animation-delay: 0.3s; }
 }

@@ -107,11 +107,21 @@ const config: Config = {
           "0%, 100%": { transform: "translateY(0px)" },
           "50%": { transform: "translateY(-6px)" },
         },
+        enter: {
+          "0%": { opacity: "0", transform: "translateY(12px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "scale-in": {
+          "0%": { opacity: "0", transform: "scale(0.9)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
       },
       animation: {
         "pulse-slow": "pulse-slow 3s ease-in-out infinite",
         shimmer: "shimmer 1.8s linear infinite",
         float: "float 5s ease-in-out infinite",
+        enter: "enter 0.4s ease-out both",
+        "scale-in": "scale-in 0.3s ease-out both",
       },
     },
   },

@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   BarChart3,
   Building2,
+  FileText,
   LogOut,
   Settings,
   Users,
@@ -30,6 +31,7 @@ import LogsTable from "@/components/admin/LogsTable";
 import UsersGrid from "@/components/admin/UsersGrid";
 import SceneManager from "@/components/admin/SceneManager";
 import SettingsForm from "@/components/admin/SettingsForm";
+import ReportTab from "@/components/admin/ReportTab";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -39,6 +41,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
   { id: "users",     label: "Jamaah",    icon: Users },
+  { id: "report",    label: "Report",    icon: FileText },
   { id: "scenes",    label: "Scenes",    icon: Building2 },
   { id: "settings",  label: "Settings",  icon: Settings },
 ] as const;
@@ -118,6 +121,7 @@ export default function AdminPage() {
       <main className="flex-1 px-4 pb-12 pt-4">
         {activeTab === "dashboard" && <LogsTable />}
         {activeTab === "users" && <UsersGrid />}
+        {activeTab === "report" && <ReportTab />}
         {activeTab === "scenes" && <SceneManager />}
         {activeTab === "settings" && <SettingsForm />}
       </main>

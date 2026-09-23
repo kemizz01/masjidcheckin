@@ -3,13 +3,12 @@
 // ===========================================================================
 // MasjidCheckIn — Home Screen
 //
-// Mobile-first dashboard showing the mosque name, a live clock, the next
-// upcoming prayer with a real-time countdown, the full five daily prayer
-// times, today's attendance status, and a prominent "Start Attendance" CTA.
-//
-// All heavy data (prayer times, user attendance history) will later come
-// from Supabase or a prayer-times API.  For Phase 2 we use static sample
-// data from `lib/prayerTimes.ts`.
+// Mobile-first dashboard showing:
+//   - Labschool & Akrom branding logos
+//   - Live clock & prayer times with countdown
+//   - Registration status indicator
+//   - Today's attendance status
+//   - "Start Attendance" CTA button
 // ===========================================================================
 
 import { useEffect, useMemo, useState } from "react";
@@ -27,11 +26,13 @@ import {
   CalendarDays,
   Clock3,
   Info,
+  UserPlus,
+  Lock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import ThemeToggle from "@/components/ThemeToggle";
-import { MOSQUE } from "@/lib/config";
+import { MOSQUE, BRANDING } from "@/lib/config";
 import { useMosqueSettings } from "@/lib/useMosqueSettings";
 import {
   PRAYER_TIMES,
@@ -58,11 +59,6 @@ const PRAYER_ICONS: Record<string, LucideIcon> = {
 /*  Hook: useNow                                                        */
 /* ================================================================== */
 
-/**
- * Returns the current `Date` and re-renders the component on the given
- * interval (default: 1 second). Used to power the live clock and the
- * prayer countdown without a page refresh.
- */
 function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -73,6 +69,26 @@ function useNow(intervalMs = 1000) {
 }
 
 /* ================================================================== */
+/*  Animation variants                                                 */
+/* ================================================================== */
+
+const containerVariants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.09 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 300, damping: 24 },
+  },
+};
+
+/* ================================================================== */
 /*  Page Component                                                     */
 /* ================================================================== */
 
@@ -80,11 +96,9 @@ export default function HomePage() {
   const now = useNow();
   const { settings } = useMosqueSettings();
 
-  // Compute next prayer and current prayer period based on the live clock.
   const nextPrayer = useMemo(() => getNextPrayer(now), [now]);
   const currentPrayer = useMemo(() => getCurrentPrayer(now), [now]);
 
-  // Format the current date (e.g. "Wednesday, 23 September 2026").
   const formattedDate = useMemo(
     () =>
       now.toLocaleDateString("en-GB", {
@@ -107,12 +121,10 @@ export default function HomePage() {
   );
 
   /* ---- Placeholder attendance status ---- */
-  // In Phase 4+ this will be replaced with a Supabase fetch.
   const todaysAttendance = useMemo(() => {
-    // Mock: show Fajr as attended, others pending.
     return PRAYER_TIMES.map((p) => ({
       ...p,
-      attended: p.name === "Fajr", // only Fajr was "recorded" today
+      attended: p.name === "Fajr",
     }));
   }, []);
 
@@ -121,49 +133,72 @@ export default function HomePage() {
       {/* =================================================================
        *  FIXED BOTTOM CTA BAR
        * ================================================================= */}
-      <div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-4 pt-2">
+      <motion.div
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+        className="fixed inset-x-0 bottom-0 z-20 px-4 pb-4 pt-2"
+      >
         <div className="mx-auto max-w-md">
           <Link
             href="/attend"
-            className="group relative flex items-center justify-center gap-2.5 rounded-2xl bg-gold-gradient px-6 py-4 font-semibold text-navy-950 shadow-glow transition active:scale-[0.98]"
+            className="group relative flex items-center justify-center gap-2.5 rounded-2xl bg-gold-gradient px-6 py-4 font-semibold text-navy-950 shadow-glow transition hover:shadow-[0_0_0_1px_rgba(217,169,78,0.5),0_14px_40px_-8px_rgba(217,169,78,0.4)] active:scale-[0.97]"
           >
             <Sparkles className="h-5 w-5" />
             <span className="tracking-wide">Start Attendance</span>
-            <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+            <motion.span
+              animate={{ x: [0, 4, 0] }}
+              transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+            >
+              <ArrowRight className="h-5 w-5" />
+            </motion.span>
           </Link>
         </div>
-      </div>
+      </motion.div>
 
       {/* =================================================================
-       *  STICKY GLASS HEADER
+       *  STICKY GLASS HEADER — with dual logos
        * ================================================================= */}
-      <header className="glass-heavy sticky top-0 z-20 flex items-center gap-3 px-4 py-3">
-        {/* mosque icon & name */}
-        <div className="flex flex-1 items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold/15">
-            <MapPin className="h-5 w-5 text-gold" />
-          </div>
-          <div className="leading-tight">
-            <p className="text-sm font-semibold text-foreground">
-              {settings.name}
-            </p>
-            <p className="text-[11px] text-muted">MasjidCheckIn</p>
-          </div>
+      <motion.header
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="glass-heavy sticky top-0 z-20 flex items-center gap-2.5 px-3 py-3"
+      >
+        {/* Akrom logo */}
+        <img
+          src={BRANDING.logoAkromUrl}
+          alt="Akrom"
+          className="h-9 w-9 rounded-full object-cover ring-1 ring-gold/30"
+        />
+        {/* Labschool logo */}
+        <img
+          src={BRANDING.logoLabschoolUrl}
+          alt="Labschool"
+          className="h-9 w-9 rounded-full object-cover ring-1 ring-gold/20"
+        />
+
+        <div className="flex-1 leading-tight">
+          <p className="text-sm font-semibold text-foreground">
+            {settings.name}
+          </p>
+          <p className="text-[10px] text-muted">MasjidCheckIn · LMS</p>
         </div>
+
         <ThemeToggle />
-      </header>
+      </motion.header>
 
       {/* =================================================================
-       *  MAIN CONTENT (bottom padding to clear the fixed CTA)
+       *  MAIN CONTENT
        * ================================================================= */}
-      <main className="flex-1 space-y-5 px-4 pb-32 pt-4">
+      <motion.main
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="flex-1 space-y-5 px-4 pb-32 pt-4"
+      >
         {/* -------- Greeting -------- */}
-        <motion.section
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="text-center"
-        >
+        <motion.section variants={itemVariants} className="text-center">
           <p className="text-sm font-medium tracking-wider text-muted uppercase">
             Assalamu&apos;alaikum
           </p>
@@ -173,14 +208,44 @@ export default function HomePage() {
           <p className="mt-1 text-xs text-muted">{formattedDate}</p>
         </motion.section>
 
+        {/* -------- Registration Status Badge -------- */}
+        <motion.section variants={itemVariants}>
+          {settings.registration_open ? (
+            <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-3 animate-pulse-slow">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15">
+                <UserPlus className="h-4 w-4 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-emerald-300">
+                  Face Registration Open
+                </p>
+                <p className="text-[10px] text-emerald-400/70">
+                  New users can register their face now
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-2xl border border-line/10 bg-surface-2/30 px-4 py-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2/60">
+                <Lock className="h-4 w-4 text-muted" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted">
+                  Registration Closed
+                </p>
+                <p className="text-[10px] text-muted/60">
+                  Only registered users can attend
+                </p>
+              </div>
+            </div>
+          )}
+        </motion.section>
+
         {/* -------- Live Clock Card -------- */}
         <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.08 }}
+          variants={itemVariants}
           className="glass relative overflow-hidden rounded-2xl p-6 text-center"
         >
-          {/* subtle background ring */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 opacity-[0.04]"
@@ -202,9 +267,7 @@ export default function HomePage() {
 
         {/* -------- Next Prayer + Countdown -------- */}
         <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.14 }}
+          variants={itemVariants}
           className="relative overflow-hidden rounded-2xl border border-gold/25 bg-gold/[0.06] p-5"
         >
           <div className="flex items-start justify-between">
@@ -232,11 +295,11 @@ export default function HomePage() {
               </p>
             </div>
           </div>
-          {/* Thin progress bar */}
+          {/* Animated progress bar */}
           <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-gold/15">
             <motion.div
               className="h-full rounded-full bg-gold/70"
-              // Approximate progress through the current prayer period
+              layout
               style={{
                 width: nextPrayer.diffMs
                   ? `${Math.min(100, Math.max(0, 100 - (nextPrayer.diffMs / 7200000) * 100))}%`
@@ -247,12 +310,7 @@ export default function HomePage() {
         </motion.section>
 
         {/* -------- Full Prayer Times List -------- */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.2 }}
-          className="space-y-1.5"
-        >
+        <motion.section variants={itemVariants} className="space-y-1.5">
           <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-wide text-muted uppercase">
             <Clock3 className="h-3.5 w-3.5" />
             Today&apos;s Prayer Times
@@ -263,8 +321,9 @@ export default function HomePage() {
             const Icon = PRAYER_ICONS[p.name] ?? Moon;
 
             return (
-              <div
+              <motion.div
                 key={p.name}
+                whileHover={{ scale: 1.01 }}
                 className={cn(
                   "flex items-center justify-between rounded-xl px-4 py-3 transition-colors",
                   isNext
@@ -295,17 +354,17 @@ export default function HomePage() {
                     </span>
                   )}
                 </div>
-                <span className="text-sm tabular-nums text-muted">{p.time}</span>
-              </div>
+                <span className="text-sm tabular-nums text-muted">
+                  {p.time}
+                </span>
+              </motion.div>
             );
           })}
         </motion.section>
 
         {/* -------- Today's Status -------- */}
         <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.26 }}
+          variants={itemVariants}
           className="glass rounded-2xl p-5"
         >
           <div className="mb-3 flex items-center gap-2">
@@ -319,7 +378,7 @@ export default function HomePage() {
               <div
                 key={p.name}
                 className={cn(
-                  "flex flex-1 flex-col items-center gap-1 rounded-lg py-2 text-center",
+                  "flex flex-1 flex-col items-center gap-1 rounded-lg py-2 text-center transition-transform hover:scale-105",
                   p.attended ? "bg-emerald-500/10" : "bg-surface-2/40",
                 )}
               >
@@ -349,7 +408,7 @@ export default function HomePage() {
 
         {/* -------- Extra bottom spacing for the sticky CTA -------- */}
         <div className="h-6" />
-      </main>
+      </motion.main>
     </div>
   );
 }

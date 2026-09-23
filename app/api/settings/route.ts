@@ -45,6 +45,7 @@ export async function PUT(request: Request) {
       latitude?: number;
       longitude?: number;
       geofence_radius?: number;
+      registration_open?: boolean;
     };
 
     const client = getServiceClient();
@@ -54,6 +55,7 @@ export async function PUT(request: Request) {
     if (typeof body.latitude === "number") updates.latitude = body.latitude;
     if (typeof body.longitude === "number") updates.longitude = body.longitude;
     if (typeof body.geofence_radius === "number") updates.geofence_radius = body.geofence_radius;
+    if (typeof body.registration_open === "boolean") updates.registration_open = body.registration_open;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(

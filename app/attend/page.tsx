@@ -24,6 +24,7 @@ import {
   CloudSun,
   Landmark,
   Loader2,
+  Lock,
   MapPin,
   Moon,
   RefreshCw,
@@ -33,6 +34,7 @@ import {
   Sun,
   Sunrise,
   Sunset,
+  UserPlus,
   XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -334,6 +336,33 @@ export default function AttendPage() {
       </div>
 
       {/* ================================================================
+       *  REGISTRATION STATUS BADGE
+       * ================================================================ */}
+      {step === 2 && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mx-4 mt-3"
+        >
+          {settings.registration_open ? (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-2 animate-pulse-slow">
+              <UserPlus className="h-3.5 w-3.5 text-emerald-400" />
+              <p className="text-[10px] font-medium text-emerald-300">
+                Registration open — new faces can be registered
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-xl border border-line/10 bg-surface-2/30 px-3 py-2">
+              <Lock className="h-3.5 w-3.5 text-muted" />
+              <p className="text-[10px] font-medium text-muted">
+                Registration closed — only registered users can attend
+              </p>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* ================================================================
        *  STEP CONTENT (animated transitions)
        * ================================================================ */}
       <main className="relative flex-1 px-4 py-6 pb-24">
@@ -458,7 +487,7 @@ export default function AttendPage() {
                   <div className="flex flex-col items-center gap-2 text-center">
                     <span className="inline-flex items-center gap-2 rounded-full bg-red-500/10 px-4 py-2 text-red-400">
                       <XCircle className="h-4 w-4" />
-                      Face recognition failed
+                      Face not recognized
                       <button
                         onClick={() => setFaceStatus("scanning")}
                         className="ml-1 underline"
@@ -470,6 +499,21 @@ export default function AttendPage() {
                       <code className="max-w-xs break-words text-[10px] leading-relaxed text-muted/60">
                         {faceResult.name}
                       </code>
+                    )}
+                    {settings.registration_open && (
+                      <Link
+                        href="/admin"
+                        className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-gold/10 px-3 py-1.5 text-[11px] font-medium text-gold transition hover:bg-gold/20"
+                      >
+                        <UserPlus className="h-3 w-3" />
+                        Register your face (requires admin)
+                      </Link>
+                    )}
+                    {!settings.registration_open && (
+                      <p className="mt-1 text-[10px] text-muted/60">
+                        Registration is currently closed. Please contact the
+                        admin.
+                      </p>
                     )}
                   </div>
                 )}

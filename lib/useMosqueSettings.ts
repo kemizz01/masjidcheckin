@@ -20,6 +20,7 @@ export interface MosqueSettings {
   latitude: number;
   longitude: number;
   geofence_radius: number;
+  registration_open: boolean;
 }
 
 export function useMosqueSettings() {
@@ -29,6 +30,7 @@ export function useMosqueSettings() {
     latitude: MOSQUE.latitude,
     longitude: MOSQUE.longitude,
     geofence_radius: MOSQUE.geofenceRadiusMeters,
+    registration_open: MOSQUE.registrationOpen,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -46,6 +48,7 @@ export function useMosqueSettings() {
           latitude: data.settings.latitude ?? MOSQUE.latitude,
           longitude: data.settings.longitude ?? MOSQUE.longitude,
           geofence_radius: data.settings.geofence_radius ?? MOSQUE.geofenceRadiusMeters,
+          registration_open: data.settings.registration_open ?? MOSQUE.registrationOpen,
         });
       }
       setError("");

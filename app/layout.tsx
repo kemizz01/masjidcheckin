@@ -81,13 +81,27 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="relative min-h-screen">
-        {/* ---------- Global ambient background accent ---------- */}
+        {/* ---------- Labschool banner background ---------- */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 -z-20"
+          style={{
+            backgroundImage:
+              "url('https://i.ibb.co.com/DfTJH94s/banner-labschool.jpg')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            opacity: 0.06,
+          }}
+        />
+        {/* ---------- Layered overlay for depth ---------- */}
         <div
           aria-hidden="true"
           className="pointer-events-none fixed inset-0 -z-10"
           style={{
             background:
-              "radial-gradient(ellipse 800px 500px at 50% 0%, rgba(217,169,78,0.12), transparent 58%)",
+              "radial-gradient(ellipse 1000px 600px at 50% 0%, rgba(217,169,78,0.18), transparent 60%), " +
+              "radial-gradient(ellipse 700px 500px at 80% 100%, rgba(16,30,51,0.35), transparent 55%)",
           }}
         />
 

@@ -19,6 +19,22 @@ export const MOSQUE = {
 
   /** Maximum allowed distance (in metres) from the mosque. */
   geofenceRadiusMeters: 150,
+
+  /** Whether face registration is open to the public. */
+  registrationOpen: false,
+} as const;
+
+/* ------------------------------------------------------------------ */
+/*  Branding — LMS Labschool logos                                     */
+/* ------------------------------------------------------------------ */
+
+export const BRANDING = {
+  /** Labschool banner background image */
+  bannerUrl: "https://i.ibb.co.com/DfTJH94s/banner-labschool.jpg",
+  /** Islamic Organization (Akrom) logo */
+  logoAkromUrl: "https://i.ibb.co.com/WpMyfvyH/logo-akrom.png",
+  /** Labschool logo */
+  logoLabschoolUrl: "https://i.ibb.co.com/zHnQ5F6N/logo-labschool.png",
 } as const;
 
 /**

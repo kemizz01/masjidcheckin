@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Loader2, Save, RefreshCw } from "lucide-react";
+import { Loader2, Save, RefreshCw, ToggleLeft, ToggleRight } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -14,6 +15,7 @@ interface MosqueSettings {
   latitude: number;
   longitude: number;
   geofence_radius: number;
+  registration_open: boolean;
 }
 
 /* ================================================================== */
@@ -30,6 +32,7 @@ export default function SettingsForm() {
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [radius, setRadius] = useState("");
+  const [regOpen, setRegOpen] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -48,12 +51,14 @@ export default function SettingsForm() {
         setLat(String(data.settings.latitude ?? ""));
         setLng(String(data.settings.longitude ?? ""));
         setRadius(String(data.settings.geofence_radius ?? ""));
+        setRegOpen(data.settings.registration_open ?? false);
       } else {
         // No settings row yet — pre-fill from lib/config.ts defaults.
         setName("Masjid Al-Ikhlas");
         setLat("-6.2088");
         setLng("106.8456");
         setRadius("150");
+        setRegOpen(false);
       }
     } catch (err: any) {
       setError(err.message ?? "Failed to load settings.");
@@ -77,6 +82,7 @@ export default function SettingsForm() {
           latitude: parseFloat(lat),
           longitude: parseFloat(lng),
           geofence_radius: parseInt(radius, 10),
+          registration_open: regOpen,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Save failed");
@@ -154,6 +160,44 @@ export default function SettingsForm() {
             onChange={(e) => setRadius(e.target.value)}
             className="w-full rounded-xl border border-line/20 bg-surface px-3 py-2.5 text-sm text-foreground focus:border-gold/50 focus:outline-none"
           />
+        </div>
+
+        {/* Registration toggle */}
+        <div className="rounded-xl border border-line/15 bg-surface-2/40 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">
+                Face Registration
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted">
+                When enabled, anyone can register their face at the attendance
+                screen. Disable after all Jamaah are registered.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRegOpen(!regOpen)}
+              className={cn(
+                "ml-3 flex h-8 w-14 shrink-0 items-center rounded-full p-1 transition-colors",
+                regOpen ? "bg-emerald-500/80" : "bg-line/30",
+              )}
+            >
+              <motion.div
+                layout
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                className={cn(
+                  "flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm",
+                  regOpen ? "ml-auto" : "ml-0",
+                )}
+              >
+                {regOpen ? (
+                  <ToggleRight className="h-3.5 w-3.5 text-emerald-600" />
+                ) : (
+                  <ToggleLeft className="h-3.5 w-3.5 text-muted" />
+                )}
+              </motion.div>
+            </button>
+          </div>
         </div>
 
         {/* Save button */}
