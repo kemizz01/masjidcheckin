@@ -38,7 +38,11 @@ let _tf: any = null;
 let modelsLoaded = false;
 
 async function getFaceAPI(): Promise<any> {
-  if (!_faceapi) _faceapi = await import("@vladmandic/face-api");
+  // Force the ESM/browser build.  The Node.js build (face-api.node.js) at
+  // the package's "main" field requires @tensorflow/tfjs-node, which has
+  // native C++ addons that won't run on Vercel serverless.
+  // The ESM build only depends on @tensorflow/tfjs (pure CPU/WASM).
+  if (!_faceapi) _faceapi = await import("@vladmandic/face-api/dist/face-api.esm.js");
   return _faceapi;
 }
 
