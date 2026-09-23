@@ -10,16 +10,18 @@
  *  At runtime (Vercel serverless), the packages are imported lazily on
  *  the first API call — cold-start penalty, but fully functional.
  *
- *  MODEL LOADING (IMPORTANT):
- *    face-api's `net.load()` uses `fetch()` internally.  `file://` URIs
- *    do NOT work in Node.js / Vercel serverless.  Instead, we point
- *    `load()` at the HTTP URL of the `public/models/face-api/` directory
- *    which Next.js serves as static assets.  The serverless function
- *    fetches from its own deployment origin.
+ *  MODEL LOADING:
+ *    Model weights are read directly from the filesystem (`public/models/face-api/`).
+ *    We monkey-patch face-api's internal `fetch` to serve files from disk instead
+ *    of making HTTP requests.  This avoids issues with Vercel Deployment Protection
+ *    blocking self-fetches on preview deployments.
  *
  *  EUCLIDEAN THRESHOLD:  0.45
  * =============================================================================
  */
+
+import fs from "fs";
+import path from "path";
 
 // Type-only imports — erased at compile time, so they never trigger the
 // face-api / tfjs module load during the Next.js build step.
@@ -52,29 +54,92 @@ async function getTF(): Promise<any> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Model-loading URL                                                  */
+/*  Filesystem-backed model loading                                    */
 /* ------------------------------------------------------------------ */
 
 /**
- * Returns the absolute HTTP base URL where the face-api model files are
- * served (`public/models/face-api/` in the Next.js filesystem).
- *
- * In production (Vercel), the function fetches from its own deployment
- * origin via the `VERCEL_URL` env var.  In local development it uses
- * `http://localhost:PORT`.
+ * Resolves the absolute path to the model files directory.
+ * On Vercel serverless, the files from `public/models/face-api/` are
+ * included via `outputFileTracingIncludes` and can be found at various
+ * locations depending on the runtime layout.
  */
-function getModelBaseUrl(): string {
-  // ---- Vercel production --------------------------------------------
-  const vercelUrl = process.env.VERCEL_URL;
-  if (vercelUrl) return `https://${vercelUrl}`;
+function getModelDir(): string {
+  const cwd = process.cwd();
 
-  // ---- Detected via the request host (e.g., preview deployments) ----
-  // Some Vercel runtimes set NEXT_PUBLIC_SITE_URL.
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  if (siteUrl) return siteUrl.replace(/\/$/, "");
+  // Check common locations where the model files might be on disk
+  const candidates = [
+    // Vercel serverless: files are at the project root level
+    path.join(cwd, "public", "models", "face-api"),
+    // Alternative: files may be nested under .next/server
+    path.join(cwd, ".next", "server", "public", "models", "face-api"),
+    // Vercel may put them directly in the function directory
+    path.join(cwd, "models", "face-api"),
+  ];
 
-  // ---- Local dev ----------------------------------------------------
-  return `http://localhost:${process.env.PORT || 3000}`;
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  // Fallback to the standard location — will fail with a clear error
+  console.error(
+    "[face-recognition] Model directory not found. Checked:",
+    candidates,
+  );
+  return candidates[0];
+}
+
+/**
+ * Monkey-patches face-api's environment so that model-weight fetches
+ * are served from the local filesystem instead of HTTP.
+ *
+ * This avoids Vercel Deployment Protection which blocks the serverless
+ * function from fetching its own static files on preview deployments.
+ */
+function patchFetch(faceapi: any): void {
+  const globalFetch = globalThis.fetch?.bind(globalThis);
+  const modelDir = getModelDir();
+  console.log("[face-recognition] Model directory on disk:", modelDir);
+
+  faceapi.env.monkeyPatch({
+    fetch: async (url: string, init?: any) => {
+      const urlStr = typeof url === "string" ? url : String(url);
+
+      // Intercept requests for model weight files
+      if (urlStr.includes("/models/face-api/")) {
+        const fileName = urlStr.split("/models/face-api/").pop()!.split("?")[0];
+        const filePath = path.join(modelDir, fileName);
+
+        try {
+          const buffer = fs.readFileSync(filePath);
+          const isJson = fileName.endsWith(".json");
+          return new Response(buffer, {
+            status: 200,
+            headers: {
+              "Content-Type": isJson
+                ? "application/json"
+                : "application/octet-stream",
+              "Content-Length": String(buffer.length),
+            },
+          });
+        } catch (err: any) {
+          console.error(
+            `[face-recognition] Failed to read ${fileName} from disk:`,
+            err.message,
+          );
+          return new Response(null, { status: 404, statusText: "Not Found" });
+        }
+      }
+
+      // Pass through to the real fetch for non-model URLs
+      if (globalFetch) return globalFetch(url, init);
+      throw new Error(
+        "[face-recognition] No global fetch available for non-model URL: " +
+          urlStr,
+      );
+    },
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -87,8 +152,15 @@ export async function initFaceModels(): Promise<void> {
   const faceapi = await getFaceAPI();
   await (await getTF()).ready();
 
-  const baseUrl = `${getModelBaseUrl()}/models/face-api`;
-  console.log("[face-recognition] Loading models from:", baseUrl);
+  // Patch face-api to load models from the local filesystem instead of
+  // making HTTP requests (which fail on Vercel preview deployments due
+  // to Deployment Protection).
+  patchFetch(faceapi);
+
+  // We still need to pass a URL-like path so face-api constructs the
+  // correct manifest URL internally.  Our patched fetch intercepts it.
+  const baseUrl = "https://localhost/models/face-api";
+  console.log("[face-recognition] Loading models from disk");
 
   try {
     await faceapi.nets.tinyFaceDetector.load(baseUrl);
@@ -97,8 +169,8 @@ export async function initFaceModels(): Promise<void> {
   } catch (err) {
     console.error("[face-recognition] Model loading failed:", err);
     throw new Error(
-      "Face model weights could not be loaded from " + baseUrl + ". " +
-        "Ensure the files exist in public/models/face-api/.",
+      "Face model weights could not be loaded from public/models/face-api/. " +
+        "Ensure the model files exist and are deployed correctly.",
     );
   }
 
