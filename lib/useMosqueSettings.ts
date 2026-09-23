@@ -21,6 +21,8 @@ export interface MosqueSettings {
   longitude: number;
   geofence_radius: number;
   registration_open: boolean;
+  scene_detection: boolean;
+  attendance_open: boolean;
 }
 
 export function useMosqueSettings() {
@@ -31,6 +33,8 @@ export function useMosqueSettings() {
     longitude: MOSQUE.longitude,
     geofence_radius: MOSQUE.geofenceRadiusMeters,
     registration_open: MOSQUE.registrationOpen,
+    scene_detection: MOSQUE.sceneDetectionEnabled,
+    attendance_open: MOSQUE.attendanceOpen,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,6 +53,8 @@ export function useMosqueSettings() {
           longitude: data.settings.longitude ?? MOSQUE.longitude,
           geofence_radius: data.settings.geofence_radius ?? MOSQUE.geofenceRadiusMeters,
           registration_open: data.settings.registration_open ?? MOSQUE.registrationOpen,
+          scene_detection: data.settings.scene_detection ?? MOSQUE.sceneDetectionEnabled,
+          attendance_open: data.settings.attendance_open ?? MOSQUE.attendanceOpen,
         });
       }
       setError("");

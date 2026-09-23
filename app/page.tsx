@@ -16,6 +16,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
+  CalendarX,
   CloudSun,
   Moon,
   Sparkles,
@@ -140,19 +141,33 @@ export default function HomePage() {
         className="fixed inset-x-0 bottom-0 z-20 px-4 pb-4 pt-2"
       >
         <div className="mx-auto max-w-md">
-          <Link
-            href="/attend"
-            className="group relative flex items-center justify-center gap-2.5 rounded-2xl bg-gold-gradient px-6 py-4 font-semibold text-navy-950 shadow-glow transition hover:shadow-[0_0_0_1px_rgba(217,169,78,0.5),0_14px_40px_-8px_rgba(217,169,78,0.4)] active:scale-[0.97]"
-          >
-            <Sparkles className="h-5 w-5" />
-            <span className="tracking-wide">Start Attendance</span>
-            <motion.span
-              animate={{ x: [0, 4, 0] }}
-              transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+          {settings.attendance_open ? (
+            <Link
+              href="/attend"
+              className="group relative flex items-center justify-center gap-2.5 rounded-2xl bg-gold-gradient px-6 py-4 font-semibold text-navy-950 shadow-glow transition hover:shadow-[0_0_0_1px_rgba(217,169,78,0.5),0_14px_40px_-8px_rgba(217,169,78,0.4)] active:scale-[0.97]"
             >
-              <ArrowRight className="h-5 w-5" />
-            </motion.span>
-          </Link>
+              <Sparkles className="h-5 w-5" />
+              <span className="tracking-wide">Start Attendance</span>
+              <motion.span
+                animate={{ x: [0, 4, 0] }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 1.4,
+                  ease: "easeInOut",
+                }}
+              >
+                <ArrowRight className="h-5 w-5" />
+              </motion.span>
+            </Link>
+          ) : (
+            <div
+              aria-disabled="true"
+              className="flex cursor-not-allowed items-center justify-center gap-2.5 rounded-2xl border border-line/15 bg-surface/70 px-6 py-4 font-semibold text-muted backdrop-blur-xl"
+            >
+              <CalendarX className="h-5 w-5" />
+              <span className="tracking-wide">Attendance Closed</span>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -208,18 +223,50 @@ export default function HomePage() {
           <p className="mt-1 text-xs text-muted">{formattedDate}</p>
         </motion.section>
 
-        {/* -------- Registration Status Badge -------- */}
-        <motion.section variants={itemVariants}>
-          {settings.registration_open ? (
+        {/* -------- Attendance & Registration Status Badges -------- */}
+        <motion.section variants={itemVariants} className="space-y-2">
+          {/* Attendance open/closed */}
+          {settings.attendance_open ? (
             <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-3 animate-pulse-slow">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15">
-                <UserPlus className="h-4 w-4 text-emerald-400" />
+                <CalendarDays className="h-4 w-4 text-emerald-400" />
               </div>
               <div>
                 <p className="text-xs font-semibold text-emerald-300">
-                  Face Registration Open
+                  Attendance Open
                 </p>
                 <p className="text-[10px] text-emerald-400/70">
+                  You can check in for prayer now
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/10">
+                <CalendarX className="h-4 w-4 text-red-400" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-red-300">
+                  Attendance Closed
+                </p>
+                <p className="text-[10px] text-red-400/70">
+                  Check-in is paused — please wait for admin to reopen it
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Registration open/closed */}
+          {settings.registration_open ? (
+            <div className="flex items-center gap-2 rounded-2xl border border-gold/25 bg-gold/[0.06] px-4 py-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/15">
+                <UserPlus className="h-4 w-4 text-gold" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gold">
+                  Face Registration Open
+                </p>
+                <p className="text-[10px] text-gold/60">
                   New users can register their face now
                 </p>
               </div>

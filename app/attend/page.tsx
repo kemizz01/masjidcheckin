@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Building2,
+  CalendarX,
   CheckCircle2,
   CloudSun,
   Landmark,
@@ -77,13 +78,20 @@ const PRAYER_ICONS: Record<string, LucideIcon> = {
   Isha: Moon,
 };
 
-/** The four steps displayed in the progress indicator. */
-const STEPS: StepDefinition[] = [
-  { id: 1, label: "Location", icon: MapPin },
-  { id: 2, label: "Face", icon: ScanFace },
-  { id: 3, label: "Scene", icon: Landmark },
-  { id: 4, label: "Done", icon: CheckCircle2 },
-];
+/** The steps displayed in the progress indicator — dynamic based on scene detection toggle. */
+function buildSteps(sceneEnabled: boolean): StepDefinition[] {
+  const steps: StepDefinition[] = [
+    { id: 1, label: "Location", icon: MapPin },
+    { id: 2, label: "Face", icon: ScanFace },
+  ];
+  if (sceneEnabled) {
+    steps.push({ id: 3, label: "Scene", icon: Landmark });
+    steps.push({ id: 4, label: "Done", icon: CheckCircle2 });
+  } else {
+    steps.push({ id: 3, label: "Done", icon: CheckCircle2 });
+  }
+  return steps;
+}
 
 /* ================================================================== */
 /*  Animation constants                                                */
@@ -108,6 +116,13 @@ export default function AttendPage() {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  /* ---- Dynamic feature flags from settings ---- */
+  const sceneEnabled = settings.scene_detection;
+  const attendanceOpen = settings.attendance_open;
+  // If scene detection is off, the flow is: GPS → Face → Done (step 3 is the final one).
+  const finalStep = sceneEnabled ? 4 : 3;
+  const steps = useMemo(() => buildSteps(sceneEnabled), [sceneEnabled]);
 
   /* ---- Step state ---- */
   const [step, setStep] = useState(1);
@@ -134,6 +149,7 @@ export default function AttendPage() {
   const mountedRef = useRef(true);
   const faceBusy = useRef(false);
   const sceneBusy = useRef(false);
+  const faceResultRef = useRef<FaceResult | null>(null);
 
   // Reset mock counters so each visit starts fresh.
   useEffect(() => {
@@ -148,6 +164,35 @@ export default function AttendPage() {
   const now = useMemo(() => new Date(), []);
   const nextPrayer = useMemo(() => getNextPrayer(now), [now]);
   const currentPrayer = useMemo(() => getCurrentPrayer(now), [now]);
+
+  /* ------------------------------------------------------------------
+   *  completeAttendance — Persist the attendance record to Supabase.
+   *  Called after face scan (scene disabled) or scene scan (scene enabled).
+   * ------------------------------------------------------------------ */
+  const completeAttendance = useCallback(
+    async (faceRes: FaceResult | null, sceneRes: SceneResult | null) => {
+      setSaving(true);
+      const prayerName =
+        getCurrentPrayer(new Date())?.name ??
+        getNextPrayer(new Date()).prayer.name;
+      try {
+        await saveAttendance({
+          user_id: faceRes?.user?.id ?? null,
+          user_name: faceRes?.name ?? null,
+          prayer_name: prayerName,
+          location_status: "inside",
+          scene_score: sceneRes?.score ?? null,
+          scene_passed: sceneRes ? sceneRes.passed : true,
+          face_distance: faceRes?.distance ?? null,
+        });
+      } catch (e) {
+        console.error("[attend] Failed to persist attendance:", e);
+      } finally {
+        if (mountedRef.current) setSaving(false);
+      }
+    },
+    [],
+  );
 
   /* =================================================================
    *  GPS CHECK (step 1)
@@ -224,13 +269,23 @@ export default function AttendPage() {
       const result = await recognizeFace(image);
       if (!mountedRef.current) return;
       if (result.matched && result.name) {
+        // Store the result in a ref so it's available in setTimeout / completions
+        faceResultRef.current = result;
         setFaceStatus("matched");
         setFaceResult(result);
+
         // Brief pause so the user sees "Verified", then advance.
         setTimeout(() => {
           if (!mountedRef.current) return;
           setDir(1);
-          setStep(3);
+          if (sceneEnabled) {
+            // Scene detection ON → advance to scene scan step
+            setStep(3);
+          } else {
+            // Scene detection OFF → jump straight to success + save attendance
+            setStep(finalStep);
+            completeAttendance(faceResultRef.current, null);
+          }
           setFaceStatus("scanning"); // reset for potential retry
         }, 1200);
       }
@@ -248,7 +303,7 @@ export default function AttendPage() {
     } finally {
       faceBusy.current = false;
     }
-  }, [faceStatus]);
+  }, [faceStatus, sceneEnabled, finalStep, completeAttendance]);
 
   /* =================================================================
    *  SCENE CAPTURE HANDLER (step 3)
@@ -263,33 +318,11 @@ export default function AttendPage() {
         setSceneStatus("passed");
         setSceneResult(result);
         // Advance to step 4 AND persist the attendance record to Supabase.
-        setTimeout(async () => {
+        setTimeout(() => {
           if (!mountedRef.current) return;
           setDir(1);
           setStep(4);
-          setSaving(true);
-
-          // Determine which prayer is being recorded (current prayer period,
-          // or the next upcoming one as fallback).
-          const prayerName =
-            getCurrentPrayer(new Date())?.name ??
-            getNextPrayer(new Date()).prayer.name;
-
-          try {
-            await saveAttendance({
-              user_id: faceResult?.user?.id ?? null,
-              user_name: faceResult?.name ?? null,
-              prayer_name: prayerName,
-              location_status: "inside", // GPS already validated in step 1
-              scene_score: result.score ?? null,
-              scene_passed: true,
-              face_distance: faceResult?.distance ?? null,
-            });
-          } catch (e) {
-            console.error("[attend] Failed to persist attendance:", e);
-          } finally {
-            if (mountedRef.current) setSaving(false);
-          }
+          completeAttendance(faceResultRef.current, result);
         }, 1000);
       }
     } catch {
@@ -298,13 +331,77 @@ export default function AttendPage() {
     } finally {
       sceneBusy.current = false;
     }
-  }, [sceneStatus]);
+  }, [sceneStatus, completeAttendance]);
 
   /* =================================================================
    *  Prayer info for the success summary
    * ================================================================= */
   const recordedPrayer: Prayer | null = currentPrayer ?? (nextPrayer ? nextPrayer.prayer : null);
   const PrayerIcon = recordedPrayer ? (PRAYER_ICONS[recordedPrayer.name] ?? Moon) : Moon;
+
+  /* =================================================================
+   *  ATTENDANCE CLOSED SCREEN
+   * ================================================================= */
+  if (!attendanceOpen) {
+    return (
+      <div className="relative mx-auto flex min-h-screen max-w-md flex-col">
+        <header className="glass-heavy sticky top-0 z-20 flex items-center gap-3 px-3 py-3">
+          <Link
+            href="/"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-gold"
+            aria-label="Back to home"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="flex-1 font-display text-[17px] tracking-wide text-foreground">
+            Attendance
+          </h1>
+          <ThemeToggle />
+        </header>
+        <main className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 18 }}
+            className="flex h-24 w-24 items-center justify-center rounded-full bg-red-500/10 ring-1 ring-red-500/20"
+          >
+            <CalendarX className="h-12 w-12 text-red-400" />
+          </motion.div>
+          <motion.h2
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mt-6 font-display text-2xl text-foreground"
+          >
+            Attendance Closed
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.22 }}
+            className="mt-2 max-w-xs text-sm leading-relaxed text-muted"
+          >
+            The admin has paused check-ins for now. Please come back later when
+            attendance is re-opened.
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mt-8"
+          >
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 rounded-full bg-gold-gradient px-6 py-3 text-sm font-semibold text-navy-950 shadow-sm transition active:scale-95"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Home
+            </Link>
+          </motion.div>
+        </main>
+      </div>
+    );
+  }
 
   /* =================================================================
    *  RENDER
@@ -332,7 +429,7 @@ export default function AttendPage() {
        *  STEP INDICATOR
        * ================================================================ */}
       <div className="px-4 pt-5">
-        <StepsIndicator steps={STEPS} current={step} />
+        <StepsIndicator steps={steps} current={step} />
       </div>
 
       {/* ================================================================
@@ -518,13 +615,24 @@ export default function AttendPage() {
                   </div>
                 )}
               </div>
+
+              {/* Scene skip notice */}
+              {!sceneEnabled && faceStatus === "scanning" && (
+                <div className="flex items-center justify-center gap-1.5 rounded-xl border border-line/10 bg-surface-2/40 px-3 py-2 text-center">
+                  <Landmark className="h-3 w-3 text-muted" />
+                  <p className="text-[10px] text-muted/70">
+                    Scene verification is <strong>turned off</strong> — you&apos;ll be
+                    checked in directly after face recognition.
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
 
           {/* ============================================================
-           *  STEP 3 — SCENE SCAN
+           *  STEP 3 — SCENE SCAN  (only when scene detection is enabled)
            * ============================================================ */}
-          {step === 3 && (
+          {step === 3 && sceneEnabled && (
             <motion.div
               key="step-3"
               custom={dir}
@@ -581,9 +689,9 @@ export default function AttendPage() {
           )}
 
           {/* ============================================================
-           *  STEP 4 — SUCCESS
+           *  FINAL STEP — SUCCESS  (step 4 with scene, step 3 without)
            * ============================================================ */}
-          {step === 4 && (
+          {step === finalStep && (
             <motion.div
               key="step-4"
               custom={dir}
@@ -660,6 +768,25 @@ export default function AttendPage() {
                         icon={<ScanFace className="h-4 w-4 text-gold" />}
                         label="Verified as"
                         value={faceResult.name}
+                      />
+                    )}
+                    {sceneEnabled ? (
+                      sceneResult && (
+                        <SummaryRow
+                          icon={<Landmark className="h-4 w-4 text-gold" />}
+                          label="Scene"
+                          value={
+                            sceneResult.label
+                              ? `Verified · ${sceneResult.label}`
+                              : "Verified"
+                          }
+                        />
+                      )
+                    ) : (
+                      <SummaryRow
+                        icon={<Landmark className="h-4 w-4 text-muted" />}
+                        label="Scene"
+                        value="Skipped (disabled by admin)"
                       />
                     )}
                   </motion.div>

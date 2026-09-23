@@ -22,6 +22,12 @@ export const MOSQUE = {
 
   /** Whether face registration is open to the public. */
   registrationOpen: false,
+
+  /** Whether the scene (surroundings) verification step is required. */
+  sceneDetectionEnabled: true,
+
+  /** Whether attendance is currently open to the public. */
+  attendanceOpen: true,
 } as const;
 
 /* ------------------------------------------------------------------ */

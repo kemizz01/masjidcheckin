@@ -46,6 +46,8 @@ export async function PUT(request: Request) {
       longitude?: number;
       geofence_radius?: number;
       registration_open?: boolean;
+      scene_detection?: boolean;
+      attendance_open?: boolean;
     };
 
     const client = getServiceClient();
@@ -56,6 +58,8 @@ export async function PUT(request: Request) {
     if (typeof body.longitude === "number") updates.longitude = body.longitude;
     if (typeof body.geofence_radius === "number") updates.geofence_radius = body.geofence_radius;
     if (typeof body.registration_open === "boolean") updates.registration_open = body.registration_open;
+    if (typeof body.scene_detection === "boolean") updates.scene_detection = body.scene_detection;
+    if (typeof body.attendance_open === "boolean") updates.attendance_open = body.attendance_open;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
