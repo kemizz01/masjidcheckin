@@ -233,9 +233,16 @@ export default function AttendPage() {
         }, 1200);
       }
       // If not matched, we keep scanning — the auto-capture loop continues.
-    } catch {
+    } catch (err: any) {
       if (!mountedRef.current) return;
+      // Capture the error so the user can see what went wrong.
       setFaceStatus("error");
+      setFaceResult({
+        matched: false,
+        name: err?.message ?? "Unknown error",
+        distance: null,
+        user: null,
+      });
     } finally {
       faceBusy.current = false;
     }
@@ -448,16 +455,23 @@ export default function AttendPage() {
                   </span>
                 )}
                 {faceStatus === "error" && (
-                  <span className="inline-flex items-center gap-2 rounded-full bg-red-500/10 px-4 py-2 text-red-400">
-                    <XCircle className="h-4 w-4" />
-                    Face recognition failed
-                    <button
-                      onClick={() => setFaceStatus("scanning")}
-                      className="ml-1 underline"
-                    >
-                      Retry
-                    </button>
-                  </span>
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-red-500/10 px-4 py-2 text-red-400">
+                      <XCircle className="h-4 w-4" />
+                      Face recognition failed
+                      <button
+                        onClick={() => setFaceStatus("scanning")}
+                        className="ml-1 underline"
+                      >
+                        Retry
+                      </button>
+                    </span>
+                    {faceResult?.name && (
+                      <code className="max-w-xs break-words text-[10px] leading-relaxed text-muted/60">
+                        {faceResult.name}
+                      </code>
+                    )}
+                  </div>
                 )}
               </div>
             </motion.div>

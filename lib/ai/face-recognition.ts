@@ -10,6 +10,13 @@
  *  At runtime (Vercel serverless), the packages are imported lazily on
  *  the first API call — cold-start penalty, but fully functional.
  *
+ *  MODEL LOADING (IMPORTANT):
+ *    face-api's `net.load()` uses `fetch()` internally.  `file://` URIs
+ *    do NOT work in Node.js / Vercel serverless.  Instead, we point
+ *    `load()` at the HTTP URL of the `public/models/face-api/` directory
+ *    which Next.js serves as static assets.  The serverless function
+ *    fetches from its own deployment origin.
+ *
  *  EUCLIDEAN THRESHOLD:  0.45
  * =============================================================================
  */
@@ -21,7 +28,6 @@ import type * as tfType from "@tensorflow/tfjs";
 
 // `jpeg-js` is pure JavaScript — safe to import statically.
 import jpeg from "jpeg-js";
-import path from "path";
 
 /* ------------------------------------------------------------------ */
 /*  Lazy module loaders                                                */
@@ -42,12 +48,34 @@ async function getTF(): Promise<any> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Model loading                                                      */
+/*  Model-loading URL                                                  */
 /* ------------------------------------------------------------------ */
 
-function getModelPath(): string {
-  return `file://${path.join(process.cwd(), "public", "models", "face-api")}`;
+/**
+ * Returns the absolute HTTP base URL where the face-api model files are
+ * served (`public/models/face-api/` in the Next.js filesystem).
+ *
+ * In production (Vercel), the function fetches from its own deployment
+ * origin via the `VERCEL_URL` env var.  In local development it uses
+ * `http://localhost:PORT`.
+ */
+function getModelBaseUrl(): string {
+  // ---- Vercel production --------------------------------------------
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) return `https://${vercelUrl}`;
+
+  // ---- Detected via the request host (e.g., preview deployments) ----
+  // Some Vercel runtimes set NEXT_PUBLIC_SITE_URL.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (siteUrl) return siteUrl.replace(/\/$/, "");
+
+  // ---- Local dev ----------------------------------------------------
+  return `http://localhost:${process.env.PORT || 3000}`;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Model loading                                                      */
+/* ------------------------------------------------------------------ */
 
 export async function initFaceModels(): Promise<void> {
   if (modelsLoaded) return;
@@ -55,15 +83,18 @@ export async function initFaceModels(): Promise<void> {
   const faceapi = await getFaceAPI();
   await (await getTF()).ready();
 
+  const baseUrl = `${getModelBaseUrl()}/models/face-api`;
+  console.log("[face-recognition] Loading models from:", baseUrl);
+
   try {
-    await faceapi.nets.tinyFaceDetector.load(getModelPath());
-    await faceapi.nets.faceLandmark68Net.load(getModelPath());
-    await faceapi.nets.faceRecognitionNet.load(getModelPath());
+    await faceapi.nets.tinyFaceDetector.load(baseUrl);
+    await faceapi.nets.faceLandmark68Net.load(baseUrl);
+    await faceapi.nets.faceRecognitionNet.load(baseUrl);
   } catch (err) {
     console.error("[face-recognition] Model loading failed:", err);
     throw new Error(
-      "Face model weights not found in public/models/face-api/. " +
-        "Run `node scripts/download-models.js` first.",
+      "Face model weights could not be loaded from " + baseUrl + ". " +
+        "Ensure the files exist in public/models/face-api/.",
     );
   }
 
