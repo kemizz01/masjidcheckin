@@ -18,6 +18,7 @@ import {
 import Skeleton from "@/components/Skeleton";
 import { cn } from "@/lib/utils";
 import { registerFace } from "@/lib/api";
+import { fileToNormalizedJpeg } from "@/lib/image";
 import {
   CLASSES,
   classLabel,
@@ -41,16 +42,6 @@ interface UserSummary {
 /*  Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-/** Convert a File to a Base64 data URL via FileReader. */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
-
 /* ================================================================== */
 /*  UsersGrid  (Admin Panel / Jamaah tab)                              */
 /* ================================================================== */
@@ -67,6 +58,7 @@ export default function UsersGrid() {
   const [regPreview, setRegPreview] = useState<string | null>(null);
   const [regBusy, setRegBusy] = useState(false);
   const [regMsg, setRegMsg] = useState("");
+  const [regWarns, setRegWarns] = useState<string[]>([]);
   const regFileRef = useRef<HTMLInputElement>(null);
 
   // List filtering state
@@ -107,10 +99,14 @@ export default function UsersGrid() {
     if (!regFile || !regName.trim() || !regClass) return;
     setRegBusy(true);
     setRegMsg("");
+    setRegWarns([]);
     try {
-      const base64 = await fileToBase64(regFile);
-      await registerFace(base64, regName.trim(), regClass);
+      // Normalise to a baseline JPEG first — phone photos can be HEIC, PNG,
+      // or progressive JPEG, none of which the server-side decoder accepts.
+      const base64 = await fileToNormalizedJpeg(regFile);
+      const result = await registerFace(base64, regName.trim(), regClass);
       setRegMsg("Registered successfully!");
+      setRegWarns(result?.warnings ?? []);
       setRegName("");
       setRegClass("");
       setRegFile(null);
@@ -304,6 +300,15 @@ export default function UsersGrid() {
           >
             {regMsg}
           </p>
+        )}
+        {regWarns.length > 0 && (
+          <ul className="mt-1 space-y-0.5">
+            {regWarns.map((w, i) => (
+              <li key={i} className="text-[11px] text-amber-400">
+                ⚠ {w}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 

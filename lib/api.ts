@@ -28,6 +28,10 @@ export interface FaceResult {
     class_name?: string | null;
     archive_photo_url?: string;
   } | null;
+  /** Diagnostic code from the server when no match was found. */
+  reason?: "no_face" | "no_users" | "no_descriptors" | "no_match" | null;
+  /** How many users are registered (helps the UI explain failures). */
+  totalUsers?: number;
 }
 
 export interface SceneResult {
@@ -57,12 +61,17 @@ async function postJSON<T>(url: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    let msg = `API ${url} returned ${res.status}`;
+    // Prefer the server's own error message — it's far more useful than a
+    // bare status code.
     try {
       const err = (await res.json()) as { error?: string };
-      if (err.error) msg += `: ${err.error}`;
-    } catch { /* ignore */ }
-    throw new Error(msg);
+      if (err?.error) throw new Error(err.error);
+    } catch (parseErr: any) {
+      if (parseErr instanceof Error && parseErr.message && !/JSON/i.test(parseErr.message)) {
+        throw parseErr;
+      }
+    }
+    throw new Error(`Request failed (HTTP ${res.status}).`);
   }
   return (await res.json()) as T;
 }
@@ -111,6 +120,8 @@ export async function recognizeFace(image: string): Promise<FaceResult> {
       archive_photo_url?: string;
     } | null;
     distance?: number | null;
+    reason?: FaceResult["reason"];
+    totalUsers?: number;
   }>("/api/recognize-face", { image });
 
   return {
@@ -118,6 +129,8 @@ export async function recognizeFace(image: string): Promise<FaceResult> {
     name: data.user?.name ?? null,
     distance: data.distance ?? null,
     user: data.user ?? null,
+    reason: data.reason ?? null,
+    totalUsers: data.totalUsers,
   };
 }
 
@@ -184,11 +197,12 @@ export async function registerFace(
   className: string,
 ): Promise<{
   success: boolean;
+  warnings?: string[];
   user: {
     id: string;
     name: string;
     class_name?: string | null;
-    archive_photo_url: string;
+    archive_photo_url: string | null;
   };
 }> {
   return postJSON("/api/register-face", { image, name, className });

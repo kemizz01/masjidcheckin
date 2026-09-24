@@ -10,6 +10,10 @@ import {
   ScanFace,
   CalendarCheck,
   UserPlus,
+  Stethoscope,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -114,6 +118,40 @@ function ToggleRow({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  DiagRow — one line in the diagnostics panel                        */
+/* ------------------------------------------------------------------ */
+
+function DiagRow({
+  ok,
+  label,
+  detail,
+}: {
+  ok: boolean | undefined;
+  label: string;
+  detail?: string;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      {ok ? (
+        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+      ) : ok === false ? (
+        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" />
+      ) : (
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-foreground">{label}</p>
+        {detail && (
+          <p className="mt-0.5 truncate text-[10px] text-muted/70" title={detail}>
+            {detail}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ================================================================== */
 /*  SettingsForm  (Admin Panel / Settings tab)                         */
 /* ================================================================== */
@@ -134,6 +172,11 @@ export default function SettingsForm() {
 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+
+  // Diagnostics panel
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diag, setDiag] = useState<any>(null);
+  const [diagError, setDiagError] = useState("");
 
   /* ---- Fetch ---- */
   const fetchSettings = useCallback(async () => {
@@ -198,6 +241,23 @@ export default function SettingsForm() {
       setMsg(err?.message ?? "Save failed.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  /* ---- Diagnostics ---- */
+  const runDiagnostics = async () => {
+    setDiagLoading(true);
+    setDiagError("");
+    setDiag(null);
+    try {
+      const res = await fetch("/api/diagnostics");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setDiag(data);
+    } catch (err: any) {
+      setDiagError(err?.message ?? "Diagnostics failed to run.");
+    } finally {
+      setDiagLoading(false);
     }
   };
 
@@ -364,6 +424,72 @@ export default function SettingsForm() {
             className="w-full rounded-xl border border-line/20 bg-surface px-3 py-2.5 text-sm text-foreground focus:border-gold/50 focus:outline-none"
           />
         </div>
+      </div>
+
+      {/* ============================================================
+       *  DIAGNOSTICS
+       * ============================================================ */}
+      <div className="space-y-3 rounded-2xl border border-line/10 bg-surface/30 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">
+            System Diagnostics
+          </h2>
+          <button
+            onClick={runDiagnostics}
+            disabled={diagLoading}
+            className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-line/30 disabled:opacity-60"
+          >
+            {diagLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Stethoscope className="h-3.5 w-3.5" />
+            )}
+            Run Check
+          </button>
+        </div>
+
+        {diagError && (
+          <p className="text-xs text-red-400">{diagError}</p>
+        )}
+
+        {diag && (
+          <div className="space-y-2 text-xs">
+            <DiagRow
+              ok={diag.models?.ok}
+              label="Face model files"
+              detail={
+                diag.models?.ok
+                  ? diag.models.dir
+                  : `Missing: ${diag.models?.missing?.join(", ") ?? "unknown"}`
+              }
+            />
+            <DiagRow
+              ok={diag.database?.connected}
+              label="Database connection"
+              detail={diag.database?.error ?? diag.database?.dir}
+            />
+            <DiagRow
+              ok={diag.database?.users_class_name_column}
+              label="users.class_name column"
+              detail={diag.database?.users_error}
+            />
+            <DiagRow
+              ok={diag.database?.settings_table && !diag.database?.settings_error}
+              label="settings table (feature flags)"
+              detail={diag.database?.settings_error}
+            />
+            <DiagRow
+              ok={diag.storage?.faces_bucket_exists}
+              label="Face photo archive bucket"
+              detail={diag.storage?.error}
+            />
+            <div className="rounded-lg bg-surface-2/50 px-3 py-2 text-[11px] text-muted">
+              {diag.database?.total_users ?? 0} user(s) registered ·{" "}
+              {diag.database?.users_with_descriptor ?? 0} with a usable face
+              descriptor · region: {diag.env?.region}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ============================================================

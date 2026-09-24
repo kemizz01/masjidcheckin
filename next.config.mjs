@@ -22,6 +22,7 @@ const nextConfig = {
     "/api/register-face": ["./public/models/**/*"],
     "/api/register-scene": ["./public/models/**/*"],
     "/api/verify-scene": ["./public/models/**/*"],
+    "/api/diagnostics": ["./public/models/**/*"],
   },
 };
 

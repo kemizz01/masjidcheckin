@@ -137,6 +137,8 @@ export default function AttendPage() {
   /* ---- Face scan state ---- */
   const [faceStatus, setFaceStatus] = useState<"scanning" | "matched" | "error">("scanning");
   const [faceResult, setFaceResult] = useState<FaceResult | null>(null);
+  const [faceError, setFaceError] = useState("");
+  const [faceAttempts, setFaceAttempts] = useState(0);
 
   /* ---- Scene scan state ---- */
   const [sceneStatus, setSceneStatus] = useState<"scanning" | "passed" | "error">("scanning");
@@ -262,48 +264,98 @@ export default function AttendPage() {
   /* =================================================================
    *  FACE CAPTURE HANDLER (step 2)
    * ================================================================= */
-  const handleFaceCapture = useCallback(async (image: string) => {
-    if (faceBusy.current || faceStatus !== "scanning") return;
-    faceBusy.current = true;
-    try {
-      const result = await recognizeFace(image);
-      if (!mountedRef.current) return;
-      if (result.matched && result.name) {
-        // Store the result in a ref so it's available in setTimeout / completions
-        faceResultRef.current = result;
-        setFaceStatus("matched");
-        setFaceResult(result);
+  /** How many failed scans before we stop and tell the user what's wrong. */
+  const MAX_FACE_ATTEMPTS = 6;
 
-        // Brief pause so the user sees "Verified", then advance.
-        setTimeout(() => {
-          if (!mountedRef.current) return;
-          setDir(1);
-          if (sceneEnabled) {
-            // Scene detection ON → advance to scene scan step
-            setStep(3);
-          } else {
-            // Scene detection OFF → jump straight to success + save attendance
-            setStep(finalStep);
-            completeAttendance(faceResultRef.current, null);
-          }
-          setFaceStatus("scanning"); // reset for potential retry
-        }, 1200);
+  const handleFaceCapture = useCallback(
+    async (image: string) => {
+      if (faceBusy.current || faceStatus !== "scanning") return;
+      faceBusy.current = true;
+      try {
+        const result = await recognizeFace(image);
+        if (!mountedRef.current) return;
+
+        /* ---- Match! ---- */
+        if (result.matched && result.name) {
+          // Store the result in a ref so it's available in setTimeout / completions
+          faceResultRef.current = result;
+          setFaceStatus("matched");
+          setFaceResult(result);
+          setFaceError("");
+
+          // Brief pause so the user sees "Verified", then advance.
+          setTimeout(() => {
+            if (!mountedRef.current) return;
+            setDir(1);
+            if (sceneEnabled) {
+              // Scene detection ON → advance to scene scan step
+              setStep(3);
+            } else {
+              // Scene detection OFF → jump straight to success + save attendance
+              setStep(finalStep);
+              completeAttendance(faceResultRef.current, null);
+            }
+            setFaceStatus("scanning"); // reset for potential retry
+          }, 1200);
+          return;
+        }
+
+        /* ---- No match — decide whether to keep trying ---- */
+        const nextAttempt = faceAttempts + 1;
+        setFaceAttempts(nextAttempt);
+
+        // These reasons can never be fixed by scanning for longer.
+        if (result.reason === "no_users" || result.reason === "no_descriptors") {
+          setFaceError(
+            result.reason === "no_users"
+              ? "No one has registered a face yet. Please register your face first."
+              : "No stored face data was found. Please register your face again.",
+          );
+          setFaceStatus("error");
+          setFaceResult(result);
+          return;
+        }
+
+        // Give up after a handful of tries so the user is never stuck scanning.
+        if (nextAttempt >= MAX_FACE_ATTEMPTS) {
+          setFaceError(
+            result.reason === "no_face"
+              ? "No face detected. Move closer, face the light, and hold still."
+              : "Face not recognized. Make sure you are registered, then try again.",
+          );
+          setFaceStatus("error");
+          setFaceResult(result);
+          return;
+        }
+
+        // Otherwise keep scanning — the auto-capture loop continues.
+      } catch (err: any) {
+        if (!mountedRef.current) return;
+        // Capture the error so the user can see what went wrong.
+        setFaceError(err?.message ?? "Face scan failed. Please try again.");
+        setFaceStatus("error");
+        setFaceResult({
+          matched: false,
+          name: null,
+          distance: null,
+          user: null,
+        });
+      } finally {
+        faceBusy.current = false;
       }
-      // If not matched, we keep scanning — the auto-capture loop continues.
-    } catch (err: any) {
-      if (!mountedRef.current) return;
-      // Capture the error so the user can see what went wrong.
-      setFaceStatus("error");
-      setFaceResult({
-        matched: false,
-        name: err?.message ?? "Unknown error",
-        distance: null,
-        user: null,
-      });
-    } finally {
-      faceBusy.current = false;
-    }
-  }, [faceStatus, sceneEnabled, finalStep, completeAttendance]);
+    },
+    [faceStatus, faceAttempts, sceneEnabled, finalStep, completeAttendance],
+  );
+
+  /** Reset the face step back to a fresh scanning state. */
+  const retryFaceScan = useCallback(() => {
+    setFaceError("");
+    setFaceAttempts(0);
+    setFaceResult(null);
+    faceResultRef.current = null;
+    faceBusy.current = false;
+    setFaceStatus("scanning");
+  }, []);
 
   /* =================================================================
    *  SCENE CAPTURE HANDLER (step 3)
@@ -572,6 +624,11 @@ export default function AttendPage() {
                   <span className="inline-flex items-center gap-2 rounded-full bg-gold/[0.08] px-4 py-2 text-gold">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     Scanning… hold still
+                    {faceAttempts > 0 && (
+                      <span className="text-[11px] text-gold/60">
+                        ({faceAttempts}/{MAX_FACE_ATTEMPTS})
+                      </span>
+                    )}
                   </span>
                 )}
                 {faceStatus === "matched" && faceResult && (
@@ -581,36 +638,43 @@ export default function AttendPage() {
                   </span>
                 )}
                 {faceStatus === "error" && (
-                  <div className="flex flex-col items-center gap-2 text-center">
+                  <div className="flex flex-col items-center gap-2.5 text-center">
                     <span className="inline-flex items-center gap-2 rounded-full bg-red-500/10 px-4 py-2 text-red-400">
                       <XCircle className="h-4 w-4" />
-                      Face not recognized
-                      <button
-                        onClick={() => setFaceStatus("scanning")}
-                        className="ml-1 underline"
-                      >
-                        Retry
-                      </button>
+                      {faceError || "Face not recognized"}
                     </span>
-                    {faceResult?.name && (
-                      <code className="max-w-xs break-words text-[10px] leading-relaxed text-muted/60">
-                        {faceResult.name}
-                      </code>
-                    )}
-                    {settings.registration_open && (
-                      <Link
-                        href="/admin"
-                        className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-gold/10 px-3 py-1.5 text-[11px] font-medium text-gold transition hover:bg-gold/20"
+
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        onClick={retryFaceScan}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-[11px] font-medium text-foreground transition hover:bg-line/30"
                       >
-                        <UserPlus className="h-3 w-3" />
-                        Register your face (requires admin)
-                      </Link>
-                    )}
-                    {!settings.registration_open && (
-                      <p className="mt-1 text-[10px] text-muted/60">
-                        Registration is currently closed. Please contact the
-                        admin.
-                      </p>
+                        <RefreshCw className="h-3 w-3" />
+                        Try scanning again
+                      </button>
+
+                      {settings.registration_open ? (
+                        <Link
+                          href="/register"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-gold/10 px-3 py-1.5 text-[11px] font-medium text-gold transition hover:bg-gold/20"
+                        >
+                          <UserPlus className="h-3 w-3" />
+                          Register your face
+                        </Link>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-[11px] text-muted">
+                          <Lock className="h-3 w-3" />
+                          Registration closed — contact admin
+                        </span>
+                      )}
+                    </div>
+
+                    {faceResult?.distance != null && (
+                      <code className="text-[10px] text-muted/60">
+                        closest match distance: {faceResult.distance.toFixed(3)}
+                        {faceResult.totalUsers != null &&
+                          ` · ${faceResult.totalUsers} registered`}
+                      </code>
                     )}
                   </div>
                 )}

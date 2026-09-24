@@ -24,6 +24,7 @@ import {
   extractFaceDescriptor,
   euclideanDistance,
   parseDescriptor,
+  InvalidImageError,
 } from "@/lib/ai/face-recognition";
 
 export const runtime = "nodejs";
@@ -45,7 +46,16 @@ export async function POST(request: Request) {
     // ---------------------------------------------------------------------
     // 2. Extract the incoming descriptor
     // ---------------------------------------------------------------------
-    const incomingDescriptor = await extractFaceDescriptor(body.image);
+    let incomingDescriptor: Float32Array | null = null;
+    try {
+      incomingDescriptor = await extractFaceDescriptor(body.image);
+    } catch (err: any) {
+      if (err instanceof InvalidImageError || err?.name === "InvalidImageError") {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+      throw err;
+    }
+
     if (!incomingDescriptor) {
       return NextResponse.json(
         { matched: false, user: null, distance: null, reason: "no_face" },
@@ -57,14 +67,35 @@ export async function POST(request: Request) {
     // 3. Fetch all registered users
     // ---------------------------------------------------------------------
     const client = getServiceClient();
-    const { data: users, error } = await client
+    let users: any[] | null = null;
+    const { data, error } = await client
       .from("users")
       .select("id, name, class_name, face_descriptor, archive_photo_url");
 
-    if (error) throw error;
+    if (error) {
+      // Tolerate a database that is missing the optional `class_name` column.
+      if (/class_name/i.test(error.message ?? "")) {
+        const retry = await client
+          .from("users")
+          .select("id, name, face_descriptor, archive_photo_url");
+        if (retry.error) throw retry.error;
+        users = retry.data as any[];
+      } else {
+        throw error;
+      }
+    } else {
+      users = data as any[];
+    }
+
     if (!users || users.length === 0) {
       return NextResponse.json(
-        { matched: false, user: null, distance: null, reason: "no_users" },
+        {
+          matched: false,
+          user: null,
+          distance: null,
+          reason: "no_users",
+          totalUsers: 0,
+        },
         { status: 200 },
       );
     }
@@ -73,6 +104,7 @@ export async function POST(request: Request) {
     // 4. Find the closest descriptor
     // ---------------------------------------------------------------------
     let bestMatch: { user: any; distance: number } | null = null;
+    let comparable = 0;
 
     for (const user of users) {
       if (!user.face_descriptor) continue; // skip users without a descriptor
@@ -80,15 +112,34 @@ export async function POST(request: Request) {
       let candidate: Float32Array;
       try {
         candidate = parseDescriptor(user.face_descriptor);
-      } catch {
+      } catch (parseErr: any) {
+        console.warn(
+          `[recognize-face] Skipping user ${user.id}: ${parseErr?.message}`,
+        );
         continue;
       }
+      if (candidate.length === 0) continue;
+      comparable++;
 
       const distance = euclideanDistance(incomingDescriptor, candidate);
 
       if (bestMatch === null || distance < bestMatch.distance) {
         bestMatch = { user, distance };
       }
+    }
+
+    // No user has a usable descriptor yet
+    if (comparable === 0) {
+      return NextResponse.json(
+        {
+          matched: false,
+          user: null,
+          distance: null,
+          reason: "no_descriptors",
+          totalUsers: users.length,
+        },
+        { status: 200 },
+      );
     }
 
     // ---------------------------------------------------------------------
@@ -111,6 +162,8 @@ export async function POST(request: Request) {
       matched: false,
       user: null,
       distance: bestMatch?.distance ?? null,
+      reason: "no_match",
+      totalUsers: users.length,
     });
   } catch (err: any) {
     console.error("[recognize-face] Error:", err);

@@ -258,19 +258,23 @@ export default function HomePage() {
 
           {/* Registration open/closed */}
           {settings.registration_open ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-gold/25 bg-gold/[0.06] px-4 py-3">
+            <Link
+              href="/register"
+              className="group flex items-center gap-2 rounded-2xl border border-gold/25 bg-gold/[0.06] px-4 py-3 transition hover:border-gold/50 hover:bg-gold/[0.12]"
+            >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/15">
                 <UserPlus className="h-4 w-4 text-gold" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-xs font-semibold text-gold">
                   Face Registration Open
                 </p>
                 <p className="text-[10px] text-gold/60">
-                  New users can register their face now
+                  Tap here to register your face
                 </p>
               </div>
-            </div>
+              <ArrowRight className="h-4 w-4 text-gold/70 transition group-hover:translate-x-0.5" />
+            </Link>
           ) : (
             <div className="flex items-center gap-2 rounded-2xl border border-line/10 bg-surface-2/30 px-4 py-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-2/60">

@@ -166,10 +166,44 @@ export async function initFaceModels(): Promise<void> {
 /*  base64 → tf.Tensor3D                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Thrown when the incoming image cannot be decoded (wrong format,
+ * truncated data, HEIC, progressive JPEG, …).  Routes map this to a
+ * 400 with a friendly message instead of a generic 500.
+ */
+export class InvalidImageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidImageError";
+  }
+}
+
 export async function base64ToTensor(base64: string): Promise<any> {
   const raw = base64.replace(/^data:image\/\w+;base64,/, "");
+  if (!raw) {
+    throw new InvalidImageError("The uploaded image was empty.");
+  }
+
   const buffer = Buffer.from(raw, "base64");
-  const { width, height, data: rgba } = jpeg.decode(buffer, { useTArray: true });
+  if (buffer.length === 0) {
+    throw new InvalidImageError("The uploaded image could not be decoded.");
+  }
+
+  let decoded: { width: number; height: number; data: Uint8Array };
+  try {
+    decoded = jpeg.decode(buffer, { useTArray: true });
+  } catch (err: any) {
+    // `jpeg-js` only understands baseline JPEG. PNG / HEIC / progressive
+    // JPEG files land here — surface a clear, actionable message.
+    throw new InvalidImageError(
+      "Unsupported image format. Please use a standard JPG (baseline JPEG) or PNG photo.",
+    );
+  }
+
+  const { width, height, data: rgba } = decoded;
+  if (!width || !height) {
+    throw new InvalidImageError("The uploaded image has invalid dimensions.");
+  }
 
   const rgb = new Uint8Array(width * height * 3);
   for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
@@ -192,23 +226,38 @@ export async function extractFaceDescriptor(
   await initFaceModels();
 
   const faceapi = await getFaceAPI();
+  // Decoding failures throw `InvalidImageError` (mapped to HTTP 400 upstream).
   const tensor = await base64ToTensor(base64);
 
   try {
-    // Cast through `unknown` to bridge minor type mismatches between
-    // face-api's bundled tfjs types and the standalone @tensorflow/tfjs.
-    const result = await faceapi
-      .detectSingleFace(
-        tensor as any,
-        new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }),
-      )
-      .withFaceLandmarks()
-      .withFaceDescriptor();
+    // Run a couple of detector configurations so we stay resilient to the
+    // face being framed either close-up (selfie) or further away.
+    // The descriptor itself is produced by faceRecognitionNet, which is
+    // independent of the detector, so descriptors stay comparable.
+    const attempts: Array<{ inputSize: number; scoreThreshold: number }> = [
+      { inputSize: 416, scoreThreshold: 0.4 },
+      { inputSize: 320, scoreThreshold: 0.3 },
+    ];
 
-    if (!result || !result.descriptor) return null;
-    return result.descriptor as Float32Array;
-  } catch (err) {
-    console.error("[face-recognition] Detection error:", err);
+    for (const opts of attempts) {
+      try {
+        const result = await faceapi
+          .detectSingleFace(tensor as any, new faceapi.TinyFaceDetectorOptions(opts))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (result?.descriptor) {
+          return result.descriptor as Float32Array;
+        }
+      } catch (innerErr: any) {
+        // A single detector pass failing shouldn't abort the others.
+        console.warn(
+          "[face-recognition] Detector pass failed:",
+          innerErr?.message ?? innerErr,
+        );
+      }
+    }
+
     return null;
   } finally {
     tensor?.dispose?.();
@@ -217,22 +266,61 @@ export async function extractFaceDescriptor(
 
 export function euclideanDistance(a: Float32Array, b: Float32Array): number {
   let sum = 0;
-  for (let i = 0; i < a.length; i++) {
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
     const diff = a[i] - b[i];
     sum += diff * diff;
   }
   return Math.sqrt(sum);
 }
 
+/**
+ * Normalises the many shapes a descriptor can come back as from Postgres /
+ * PostgREST into a `Float32Array`.
+ *
+ * Handles:
+ *   - `Float32Array` / `Float64Array` (already parsed)
+ *   - JS arrays (`jsonb`, `float8[]` through PostgREST)
+ *   - Postgres array literals as strings — "{0.1,0.2,…}"
+ *   - JSON strings — "[0.1,0.2,…]"
+ *   - Objects with numeric keys — { "0": 0.1, "1": 0.2, … }
+ */
 export function parseDescriptor(raw: unknown): Float32Array {
+  if (raw == null) throw new Error("Descriptor is null");
+
   if (raw instanceof Float32Array) return raw;
-  if (Array.isArray(raw)) return new Float32Array(raw);
+  if (raw instanceof Float64Array) return new Float32Array(raw);
+  if (Array.isArray(raw)) return new Float32Array(raw as number[]);
+
   if (typeof raw === "string") {
+    const trimmed = raw.trim();
+
+    // Postgres array literal: {0.1,0.2,0.3}
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      const inner = trimmed.slice(1, -1);
+      if (!inner) throw new Error("Empty descriptor array");
+      const values = inner.split(",").map((v) => parseFloat(v));
+      return new Float32Array(values);
+    }
+
+    // JSON string: [0.1,0.2,0.3]
     try {
-      return new Float32Array(JSON.parse(raw));
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return new Float32Array(parsed as number[]);
     } catch {
-      throw new Error("Invalid descriptor format in database");
+      /* fall through to error below */
+    }
+
+    throw new Error("Invalid descriptor string format in database");
+  }
+
+  // Object with numeric keys: { "0": 0.1, "1": 0.2, … }
+  if (typeof raw === "object") {
+    const values = Object.values(raw as Record<string, unknown>);
+    if (values.length > 0 && values.every((v) => typeof v === "number")) {
+      return new Float32Array(values as number[]);
     }
   }
+
   throw new Error("Unsupported descriptor format");
 }
